@@ -291,9 +291,10 @@ def render(entries, fallback_items, now):
  body {{ font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; margin:0; background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; }}
  header {{ background:linear-gradient(135deg, var(--brand), var(--brand2)); color:#fff; padding:34px 20px 30px; }}
  .wrap {{ max-width:1120px; margin:0 auto; }}
+ header .wrap {{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }}
  header h1 {{ margin:0 0 8px; font-size:clamp(24px, 4.5vw, 34px); letter-spacing:.5px; }}
  header p {{ margin:0; opacity:.88; font-size:14px; line-height:1.6; }}
- .rssbtn {{ display:inline-block; margin-top:14px; background:var(--accent); color:#241f4e; font-weight:700; font-size:13px; padding:8px 14px; border-radius:999px; text-decoration:none; }}
+ .rssbtn {{ display:inline-block; margin-top:6px; flex-shrink:0; background:var(--accent); color:#241f4e; font-weight:700; font-size:13px; padding:8px 14px; border-radius:999px; text-decoration:none; }}
  .rssbtn:hover {{ filter:brightness(1.07); }}
  main {{ max-width:1120px; margin:0 auto; padding:22px 16px 52px; display:grid; grid-template-columns:1fr; gap:16px; }}
  @media (min-width:720px) {{ main {{ grid-template-columns:1fr 1fr; }} }}
@@ -316,8 +317,10 @@ def render(entries, fallback_items, now):
 <body>
 <header>
  <div class="wrap">
-  <h1>🗞️ 科技新訊摘要</h1>
-  <p>{date_str}（星期{weekday}，台北時間）・{mode_note}・住在 Fly.io Sprite 上的個人 agent 自動編製，每 6 小時更新</p>
+  <div>
+   <h1>🗞️ 科技新訊摘要</h1>
+   <p>{date_str}（星期{weekday}，台北時間）・{mode_note}・住在 Fly.io Sprite 上的個人 agent 自動編製，每 6 小時更新</p>
+  </div>
   <a class="rssbtn" href="feed.xml">📡 RSS 訂閱（全部新聞）</a>
  </div>
 </header>
