@@ -341,6 +341,26 @@ SOURCE_COLORS = {
     "Import AI": "#946b00",
 }
 
+# Lighter variants for dark mode, where the base color would be too dark
+# against the dark card surface (e.g. The Verge's #5200ff).
+SOURCE_COLORS_DARK = {
+    "OpenAI News": "#2fbf9b",
+    "Apple ML Research": "#c9c9c9",
+    "Microsoft Research": "#4db2ff",
+    "arXiv cs.AI": "#ff8a80",
+    "arXiv cs.CL": "#e59aa4",
+    "TechCrunch AI": "#4be15a",
+    "The Verge AI": "#b79cff",
+    "Simon Willison": "#45c9dd",
+    "Import AI": "#eec04a",
+}
+
+
+def badge_style(source):
+    c = SOURCE_COLORS.get(source, "#6b675f")
+    d = SOURCE_COLORS_DARK.get(source)
+    return f"--c:{c};--cd:{d}" if d else f"--c:{c}"
+
 
 def render(entries, fallback_items, now):
     date_str = now.strftime("%Y-%m-%d")
@@ -350,22 +370,22 @@ def render(entries, fallback_items, now):
     cards = []
     if llm_mode:
         for e in entries:
-            color = SOURCE_COLORS.get(e["source"], "#6b675f")
+            bstyle = badge_style(e["source"])
             date_txt = format_date(date_by_link.get(e["link"], ""))
             cards.append(
                 f'<article class="card">'
-                f'<div class="meta"><span class="badge" style="--c:{color}">{html.escape(e["source"])}</span><span class="date">{date_txt}</span></div>'
+                f'<div class="meta"><span class="badge" style="{bstyle}">{html.escape(e["source"])}</span><span class="date">{date_txt}</span></div>'
                 f'<h2><a href="{html.escape(e["link"])}" target="_blank" rel="noopener noreferrer">{html.escape(e["title"])}</a></h2>'
                 f'<p>{html.escape(e["summary"])}</p>'
                 f'<a class="more" href="{html.escape(e["link"])}" target="_blank" rel="noopener noreferrer">閱讀原文 →</a>'
                 f'</article>')
     else:
         for it in fallback_items[:12]:
-            color = SOURCE_COLORS.get(it["source"], "#6b675f")
+            bstyle = badge_style(it["source"])
             date_txt = format_date(it.get("date", ""))
             cards.append(
                 f'<article class="card">'
-                f'<div class="meta"><span class="badge" style="--c:{color}">{html.escape(it["source"])}</span><span class="date">{date_txt}</span></div>'
+                f'<div class="meta"><span class="badge" style="{bstyle}">{html.escape(it["source"])}</span><span class="date">{date_txt}</span></div>'
                 f'<h2><a href="{html.escape(it["link"])}" target="_blank" rel="noopener noreferrer">{html.escape(it["title"])}</a></h2>'
                 f'<p>{html.escape(it["summary"][:160])}</p>'
                 f'<div class="note">原文標題，LLM 摘要待 Ollama connector 開通</div></article>')
@@ -401,9 +421,12 @@ def render(entries, fallback_items, now):
 <script type="application/ld+json">{{"@context": "https://schema.org", "@type": "WebSite", "name": "科技新訊摘要", "url": "https://tech-digest-b6vs6.sprites.app/", "inLanguage": "zh-Hant-TW", "description": "每日 AI 前沿新聞，由個人 agent 以 LLM 整理成台灣繁體中文摘要。"}}</script>
 <link rel="alternate" type="application/rss+xml" title="科技新訊摘要｜全部新聞 RSS" href="feed.xml">
 <title>科技新訊摘要｜{date_str}</title>
+<script>(function(){{try{{var t=localStorage.getItem("td-theme")||(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");document.documentElement.setAttribute("data-theme",t);}}catch(e){{document.documentElement.setAttribute("data-theme","light");}}}})();</script>
 <style>
  :root {{ --bg:#f4f2ec; --surface:#ffffff; --ink:#1d1a16; --sub:#57534a; --line:#e5e0d5; --brand:#241f4e; --brand2:#4a3f9e; --accent:#ffb020; --more:#4a3f9e; }}
  @media (prefers-color-scheme: dark) {{ :root {{ --bg:#14131a; --surface:#1e1c28; --ink:#f0ede6; --sub:#a49e92; --line:#322f42; --brand:#17142e; --brand2:#3d348b; --more:#a99cff; }} }}
+ html[data-theme="light"] {{ --bg:#f4f2ec; --surface:#ffffff; --ink:#1d1a16; --sub:#57534a; --line:#e5e0d5; --brand:#241f4e; --brand2:#4a3f9e; --accent:#ffb020; --more:#4a3f9e; }}
+ html[data-theme="dark"] {{ --bg:#14131a; --surface:#1e1c28; --ink:#f0ede6; --sub:#a49e92; --line:#322f42; --brand:#17142e; --brand2:#3d348b; --accent:#ffb020; --more:#a99cff; }}
  * {{ box-sizing:border-box; }}
  body {{ font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; margin:0; background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; }}
  header {{ background:linear-gradient(135deg, var(--brand), var(--brand2)); color:#fff; padding:34px 20px 30px; }}
@@ -419,6 +442,12 @@ def render(entries, fallback_items, now):
  .card {{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:10px; transition:transform .15s ease, box-shadow .15s ease; }}
  .card:hover {{ transform:translateY(-3px); box-shadow:0 10px 24px rgba(20,16,60,.12); }}
  .badge {{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:.4px; color:var(--c); border:1.5px solid var(--c); padding:3px 9px; border-radius:999px; }}
+ @media (prefers-color-scheme: dark) {{ .badge {{ color:var(--cd, var(--c)); border-color:var(--cd, var(--c)); }} }}
+ html[data-theme="light"] .badge {{ color:var(--c); border-color:var(--c); }}
+ html[data-theme="dark"] .badge {{ color:var(--cd, var(--c)); border-color:var(--cd, var(--c)); }}
+ .actions {{ display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap; }}
+ .themebtn {{ margin-top:6px; flex-shrink:0; background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.38); font-size:13px; line-height:1; padding:8px 12px; border-radius:999px; cursor:pointer; }}
+ .themebtn:hover {{ background:rgba(255,255,255,.24); }}
  .meta {{ display:flex; justify-content:space-between; align-items:center; gap:8px; }}
  .date {{ font-size:12px; color:var(--sub); white-space:nowrap; }}
  .card h2 {{ font-size:17.5px; margin:0; line-height:1.5; }}
@@ -442,13 +471,17 @@ def render(entries, fallback_items, now):
    <h1>🗞️ 科技新訊摘要</h1>
    <p>{date_str}（星期{weekday}，台北時間）・{mode_note}・住在 Fly.io Sprite 上的個人 agent 自動編製，每 6 小時更新</p>
   </div>
-  <a class="rssbtn" href="feed.xml">📡 RSS 訂閱（全部新聞）</a>
+  <div class="actions">
+   <a class="rssbtn" href="feed.xml">📡 RSS 訂閱（全部新聞）</a>
+   <button class="themebtn" id="themeBtn" type="button" onclick="toggleTheme()" aria-label="切換深色／淺色模式" title="切換深色／淺色模式">🌙</button>
+  </div>
  </div>
 </header>
 <main>
 {''.join(cards)}
 </main>
 <footer>精選 9 則由 LLM 編譯；完整收集清單見 <a href="feed.xml">RSS feed</a>（18 個來源，含 OpenAI、Google DeepMind、Mistral、Microsoft Research、arXiv 等）。<br>Built for Fly.io Hacksgiving 2026 — runs on a Sprite, summarized via the Sprites Ollama connector.<br>Copyright © {now.year} <a href="https://www.facebook.com/will.fans/" target="_blank" rel="noopener noreferrer">Will 保哥</a> <a class="ghlink" href="https://github.com/doggy8088/hacksgiving-tech-digest" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository" title="GitHub repository"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></a></footer>
+<script>function syncThemeIcon(){{var b=document.getElementById("themeBtn");if(b){{b.textContent=document.documentElement.getAttribute("data-theme")==="dark"?"☀️":"🌙";}}}}function toggleTheme(){{var h=document.documentElement;var n=h.getAttribute("data-theme")==="dark"?"light":"dark";h.setAttribute("data-theme",n);try{{localStorage.setItem("td-theme",n);}}catch(e){{}}syncThemeIcon();}}syncThemeIcon();</script>
 </body>
 </html>"""
 
