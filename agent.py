@@ -32,6 +32,24 @@ MAX_ITEMS_PER_FEED = 8
 MAX_ITEMS_TOTAL = 24
 TAIPEI = timezone(timedelta(hours=8))
 
+
+def _load_env_file():
+    """Load KEY=VALUE pairs from gateway.env next to this script (used when the
+    process environment does not carry them, e.g. under sprite-env services)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gateway.env")
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+    except FileNotFoundError:
+        pass
+
+
+_load_env_file()
+
 PREFERRED_MODELS = [
     "gpt-oss:120b",
     "deepseek-v3.1:671b",
