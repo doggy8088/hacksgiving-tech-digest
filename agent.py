@@ -90,6 +90,25 @@ def strip_ns(tag):
     return tag.rsplit("}", 1)[-1]
 
 
+def parse_date(raw):
+    """Parse an RSS (RFC 822) or Atom (ISO 8601) date string to an aware datetime."""
+    if not raw:
+        return None
+    raw = raw.strip()
+    try:
+        from email.utils import parsedate_to_datetime
+        dt = parsedate_to_datetime(raw)
+        if dt is not None:
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        pass
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
 def parse_feed(source, raw):
     items = []
     try:
@@ -100,6 +119,7 @@ def parse_feed(source, raw):
         if strip_ns(el.tag) not in ("item", "entry"):
             continue
         title, link, summary = "", "", ""
+        dates = {}
         for child in el:
             t = strip_ns(child.tag)
             if t == "title":
@@ -109,12 +129,31 @@ def parse_feed(source, raw):
             elif t in ("description", "summary", "content"):
                 summary = re.sub("<[^>]+>", " ", child.text or "")
                 summary = re.sub(r"\s+", " ", summary).strip()
+            elif t in ("pubDate", "published", "updated", "date"):
+                dates[t] = (child.text or "").strip()
         if title and link:
+            dt = None
+            for key in ("published", "pubDate", "date", "updated"):
+                dt = parse_date(dates.get(key, ""))
+                if dt:
+                    break
             items.append({"source": source, "title": title, "link": link,
-                          "summary": summary[:400]})
+                          "summary": summary[:400],
+                          "date": dt.isoformat() if dt else ""})
         if len(items) >= MAX_ITEMS_PER_FEED:
             break
     return items
+
+
+def format_date(iso):
+    """Format a stored ISO date in Taipei time for display; '' when unknown."""
+    if not iso:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso)
+    except Exception:
+        return ""
+    return dt.astimezone(TAIPEI).strftime("%Y/%m/%d %H:%M")
 
 
 def collect_items():
@@ -155,13 +194,19 @@ def build_rss(items, now):
              '<language>zh-Hant-TW</language>',
              f'<lastBuildDate>{pub}</lastBuildDate>']
     for it in items:
+        item_pub = pub
+        if it.get("date"):
+            try:
+                item_pub = format_datetime(datetime.fromisoformat(it["date"]).astimezone(timezone.utc))
+            except Exception:
+                pass
         parts.append('<item>'
                      f'<title>{escape(it["title"])}</title>'
                      f'<link>{escape(it["link"])}</link>'
                      f'<guid isPermaLink="true">{escape(it["link"])}</guid>'
                      f'<description>{escape(it["summary"])}</description>'
                      f'<category>{escape(it["source"])}</category>'
-                     f'<pubDate>{pub}</pubDate>'
+                     f'<pubDate>{item_pub}</pubDate>'
                      '</item>')
     parts.append('</channel></rss>')
     return "".join(parts)
@@ -255,13 +300,15 @@ def render(entries, fallback_items, now):
     date_str = now.strftime("%Y-%m-%d")
     weekday = "一二三四五六日"[now.weekday()]
     llm_mode = entries is not None
+    date_by_link = {it["link"]: it.get("date", "") for it in fallback_items}
     cards = []
     if llm_mode:
         for e in entries:
             color = SOURCE_COLORS.get(e["source"], "#6b675f")
+            date_txt = format_date(date_by_link.get(e["link"], ""))
             cards.append(
                 f'<article class="card">'
-                f'<div class="meta"><span class="badge" style="--c:{color}">{html.escape(e["source"])}</span></div>'
+                f'<div class="meta"><span class="badge" style="--c:{color}">{html.escape(e["source"])}</span><span class="date">{date_txt}</span></div>'
                 f'<h2><a href="{html.escape(e["link"])}" target="_blank" rel="noopener noreferrer">{html.escape(e["title"])}</a></h2>'
                 f'<p>{html.escape(e["summary"])}</p>'
                 f'<a class="more" href="{html.escape(e["link"])}" target="_blank" rel="noopener noreferrer">閱讀原文 →</a>'
@@ -269,9 +316,10 @@ def render(entries, fallback_items, now):
     else:
         for it in fallback_items[:12]:
             color = SOURCE_COLORS.get(it["source"], "#6b675f")
+            date_txt = format_date(it.get("date", ""))
             cards.append(
                 f'<article class="card">'
-                f'<div class="meta"><span class="badge" style="--c:{color}">{html.escape(it["source"])}</span></div>'
+                f'<div class="meta"><span class="badge" style="--c:{color}">{html.escape(it["source"])}</span><span class="date">{date_txt}</span></div>'
                 f'<h2><a href="{html.escape(it["link"])}" target="_blank" rel="noopener noreferrer">{html.escape(it["title"])}</a></h2>'
                 f'<p>{html.escape(it["summary"][:160])}</p>'
                 f'<div class="note">原文標題，LLM 摘要待 Ollama connector 開通</div></article>')
@@ -281,7 +329,30 @@ def render(entries, fallback_items, now):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="科技新訊摘要：每日 AI 前沿新聞，由住在 Fly.io Sprite 上的個人 agent 以 LLM 整理成台灣繁體中文。">
+<meta name="description" content="科技新訊摘要：每日 AI 前沿新聞，由住在 Fly.io Sprite 上的個人 agent 以 LLM 整理成台灣繁體中文。彙整 OpenAI、Google DeepMind、Mistral、Microsoft Research、arXiv 等 18 個權威來源，每 6 小時更新。">
+<meta name="keywords" content="AI 新聞, 人工智慧, 科技新訊, 繁體中文摘要, OpenAI, DeepMind, Mistral, arXiv, LLM, Fly.io, Hacksgiving">
+<meta name="author" content="Will Huang">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://tech-digest-b6vs6.sprites.app/">
+<meta name="theme-color" content="#241f4e">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="科技新訊摘要">
+<meta property="og:locale" content="zh_TW">
+<meta property="og:title" content="科技新訊摘要｜每日 AI 前沿新聞">
+<meta property="og:description" content="住在 Fly.io Sprite 上的個人 agent，每日彙整 18 個權威 AI 來源（OpenAI、Google DeepMind、Mistral、Microsoft Research、arXiv…），以 LLM 整理成台灣繁體中文摘要，每 6 小時更新。">
+<meta property="og:url" content="https://tech-digest-b6vs6.sprites.app/">
+<meta property="og:image" content="https://tech-digest-b6vs6.sprites.app/og-image.jpg">
+<meta property="og:image:secure_url" content="https://tech-digest-b6vs6.sprites.app/og-image.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="科技新訊摘要 — 每日 AI 前沿新聞，台灣繁體中文摘要">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="科技新訊摘要｜每日 AI 前沿新聞">
+<meta name="twitter:description" content="每日彙整 18 個權威 AI 來源，以 LLM 整理成台灣繁體中文摘要，每 6 小時更新。">
+<meta name="twitter:image" content="https://tech-digest-b6vs6.sprites.app/og-image.jpg">
+<meta name="twitter:image:alt" content="科技新訊摘要 — 每日 AI 前沿新聞，台灣繁體中文摘要">
+<script type="application/ld+json">{{"@context": "https://schema.org", "@type": "WebSite", "name": "科技新訊摘要", "url": "https://tech-digest-b6vs6.sprites.app/", "inLanguage": "zh-Hant-TW", "description": "每日 AI 前沿新聞，由個人 agent 以 LLM 整理成台灣繁體中文摘要。"}}</script>
 <link rel="alternate" type="application/rss+xml" title="科技新訊摘要｜全部新聞 RSS" href="feed.xml">
 <title>科技新訊摘要｜{date_str}</title>
 <style>
@@ -302,6 +373,8 @@ def render(entries, fallback_items, now):
  .card {{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:10px; transition:transform .15s ease, box-shadow .15s ease; }}
  .card:hover {{ transform:translateY(-3px); box-shadow:0 10px 24px rgba(20,16,60,.12); }}
  .badge {{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:.4px; color:var(--c); border:1.5px solid var(--c); padding:3px 9px; border-radius:999px; }}
+ .meta {{ display:flex; justify-content:space-between; align-items:center; gap:8px; }}
+ .date {{ font-size:12px; color:var(--sub); white-space:nowrap; }}
  .card h2 {{ font-size:17.5px; margin:0; line-height:1.5; }}
  .card h2 a {{ color:var(--ink); text-decoration:none; }}
  .card h2 a:hover {{ text-decoration:underline; }}
@@ -344,6 +417,10 @@ def main():
         f.write(page)
     with open(os.path.join(out_dir, "feed.xml"), "w", encoding="utf-8") as f:
         f.write(build_rss(items, now))
+    og_src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "og-image.jpg")
+    if os.path.exists(og_src):
+        import shutil
+        shutil.copy(og_src, os.path.join(out_dir, "og-image.jpg"))
     archive = {"date": now.strftime("%Y-%m-%d"), "generated_at": now.isoformat(),
                "llm": entries is not None, "entries": entries or [],
                "raw_items": items}
