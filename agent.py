@@ -51,6 +51,7 @@ def _load_env_file():
 _load_env_file()
 
 PREFERRED_MODELS = [
+    "deepseek-v4.1-flash:1017",
     "gpt-oss:120b",
     "deepseek-v3.1:671b",
     "qwen3:235b",
@@ -175,13 +176,13 @@ def render(entries, fallback_items, now):
     if llm_mode:
         for e in entries:
             cards.append(
-                f'<article><h2><a href="{html.escape(e["link"])}">{html.escape(e["title"])}</a></h2>'
+                f'<article><h2><a href="{html.escape(e["link"])}" target="_blank" rel="noopener noreferrer">{html.escape(e["title"])}</a></h2>'
                 f'<p>{html.escape(e["summary"])}</p>'
                 f'<div class="src">{html.escape(e["source"])}</div></article>')
     else:
         for it in fallback_items[:12]:
             cards.append(
-                f'<article><h2><a href="{html.escape(it["link"])}">{html.escape(it["title"])}</a></h2>'
+                f'<article><h2><a href="{html.escape(it["link"])}" target="_blank" rel="noopener noreferrer">{html.escape(it["title"])}</a></h2>'
                 f'<p>{html.escape(it["summary"][:160])}</p>'
                 f'<div class="src">{html.escape(it["source"])}（原文標題，LLM 摘要待 Ollama connector 開通）</div></article>')
     mode_note = "由 Ollama connector 驅動的 LLM 整理" if llm_mode else "Fallback 模式（connector 未開通）"
