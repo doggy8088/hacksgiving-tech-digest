@@ -201,7 +201,7 @@ def summarize(items):
         f"{i+1}. [{it['source']}] {it['title']}\n   {it['summary']}\n   {it['link']}"
         for i, it in enumerate(items))
     prompt = (
-        "你是一位台灣科技編輯。以下是今天的英文科技新聞清單。請挑出最重要的 8 則，"
+        "你是一位台灣科技編輯。以下是今天的英文科技新聞清單。請挑出最重要的 9 則，"
         "用台灣繁體中文寫成每日摘要。每一則包含：title（繁中標題，忠實原意）、"
         "summary（2 到 3 句繁中摘要，說明發生什麼事、為什麼重要）、"
         "source（原來源名稱）、link（原連結）。\n"
@@ -327,7 +327,7 @@ def render(entries, fallback_items, now):
 <main>
 {''.join(cards)}
 </main>
-<footer>精選 8 則由 LLM 編譯；完整收集清單見 <a href="feed.xml">RSS feed</a>（18 個來源，含 OpenAI、Google DeepMind、Mistral、Microsoft Research、arXiv 等）。<br>Built for Fly.io Hacksgiving 2026 — runs on a Sprite, summarized via the Sprites Ollama connector.</footer>
+<footer>精選 9 則由 LLM 編譯；完整收集清單見 <a href="feed.xml">RSS feed</a>（18 個來源，含 OpenAI、Google DeepMind、Mistral、Microsoft Research、arXiv 等）。<br>Built for Fly.io Hacksgiving 2026 — runs on a Sprite, summarized via the Sprites Ollama connector.</footer>
 </body>
 </html>"""
 

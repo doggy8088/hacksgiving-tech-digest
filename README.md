@@ -16,7 +16,7 @@ Built for **Fly.io Hacksgiving 2026**.
    Ars Technica, TechCrunch AI, The Verge AI, Simon Willison, Import AI).
    Note: Anthropic, Meta AI and xAI publish no RSS feed, so they cannot be
    collected this way.
-2. **Summarizes** the collection into a zh-TW digest of the top 8 stories
+2. **Summarizes** the collection into a zh-TW digest of the top 9 stories
    with an LLM reached through the **Sprites Ollama connector** — the
    Sprite never holds the Ollama API key; the Sprites gateway attaches the
    organization's credential to the request.
