@@ -1,0 +1,1 @@
+{"dependencies":{"@willh/opencc-cli":"^0.1.7"},"description":"Tech Digest Agent — lives on a Fly.io Sprite; uses @willh/opencc-cli (cn -> tw2) to force Taiwan Traditional Chinese output.","name":"tech-digest-agent","private":true,"version":"1.0.0"}

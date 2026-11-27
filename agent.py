@@ -16,6 +16,7 @@ import html
 import json
 import os
 import re
+import subprocess
 import sys
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -212,6 +213,45 @@ def build_rss(items, now):
     return "".join(parts)
 
 
+def _opencc_bin():
+    cand = os.environ.get("OPENCC_CLI")
+    if cand and os.path.exists(cand):
+        return cand
+    local = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "node_modules", ".bin", "opencc-cli")
+    if os.path.exists(local):
+        return local
+    import shutil
+    return shutil.which("opencc-cli")
+
+
+def convert_tw2(texts):
+    """Force-convert texts to Taiwan Traditional Chinese with @willh/opencc-cli
+    (cn -> tw2). Falls back to the originals when the CLI is unavailable, so a
+    missing tool never breaks the digest."""
+    texts = list(texts)
+    if not texts:
+        return texts
+    binary = _opencc_bin()
+    if not binary:
+        print("[warn] opencc-cli not found; skipping tw2 conversion", file=sys.stderr)
+        return texts
+    sep = "\n@@@TW2SPLIT@@@\n"
+    try:
+        proc = subprocess.run([binary, "-f", "cn", "-t", "tw2"],
+                              input=sep.join(texts), capture_output=True,
+                              text=True, timeout=60)
+        if proc.returncode != 0:
+            raise RuntimeError((proc.stderr or "")[:200])
+        parts = proc.stdout.split("@@@TW2SPLIT@@@")
+        if len(parts) != len(texts):
+            raise RuntimeError(f"split mismatch {len(parts)} != {len(texts)}")
+        return [p.strip("\n") for p in parts]
+    except Exception as e:
+        print(f"[warn] tw2 conversion failed: {e}", file=sys.stderr)
+        return texts
+
+
 def gateway_json(path, payload=None):
     base = os.environ["GATEWAY_BASE"].rstrip("/")
     data = json.dumps(payload).encode() if payload is not None else None
@@ -267,6 +307,12 @@ def summarize(items):
                   "source": str(e.get("source", "")).strip(),
                   "link": str(e.get("link", "")).strip()}
                  for e in entries if e.get("title")]
+        flat = []
+        for e in clean:
+            flat += [e["title"], e["summary"]]
+        conv = convert_tw2(flat)
+        for i, e in enumerate(clean):
+            e["title"], e["summary"] = conv[2 * i], conv[2 * i + 1]
         print(f"[info] summarized with model {model}: {len(clean)} entries")
         return clean or None
     except Exception as e:
@@ -400,7 +446,7 @@ def render(entries, fallback_items, now):
 <main>
 {''.join(cards)}
 </main>
-<footer>精選 9 則由 LLM 編譯；完整收集清單見 <a href="feed.xml">RSS feed</a>（18 個來源，含 OpenAI、Google DeepMind、Mistral、Microsoft Research、arXiv 等）。<br>Built for Fly.io Hacksgiving 2026 — runs on a Sprite, summarized via the Sprites Ollama connector.</footer>
+<footer>精選 9 則由 LLM 編譯；完整收集清單見 <a href="feed.xml">RSS feed</a>（18 個來源，含 OpenAI、Google DeepMind、Mistral、Microsoft Research、arXiv 等）。<br>Built for Fly.io Hacksgiving 2026 — runs on a Sprite, summarized via the Sprites Ollama connector.<br>Copyright © {now.year} <a href="https://www.facebook.com/will.fans/" target="_blank" rel="noopener noreferrer">Will 保哥</a></footer>
 </body>
 </html>"""
 
@@ -410,6 +456,12 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     items = collect_items()
     print(f"[info] collected {len(items)} items")
+    flat = []
+    for it in items:
+        flat += [it["title"], it["summary"]]
+    conv = convert_tw2(flat)
+    for i, it in enumerate(items):
+        it["title"], it["summary"] = conv[2 * i], conv[2 * i + 1]
     entries = summarize(items)
     now = datetime.now(TAIPEI)
     page = render(entries, items, now)

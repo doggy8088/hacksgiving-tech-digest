@@ -1,5 +1,6 @@
 __pycache__/
 public/
+node_modules/
 *.b64
 gateway.env
 .credentials.json

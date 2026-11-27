@@ -19,7 +19,10 @@ Built for **Fly.io Hacksgiving 2026**.
 2. **Summarizes** the collection into a zh-TW digest of the top 9 stories
    with an LLM reached through the **Sprites Ollama connector** — the
    Sprite never holds the Ollama API key; the Sprites gateway attaches the
-   organization's credential to the request.
+   organization's credential to the request. All displayed text (feed items
+   and LLM output alike) is force-converted to Taiwan Traditional Chinese
+   with [@willh/opencc-cli](https://www.npmjs.com/package/@willh/opencc-cli)
+   (cn → tw2).
 3. **Publishes** the digest as a responsive web page (card grid, source
    badges, dark-mode support) served from the same Sprite, plus an RSS
    feed of *all* collected items at
