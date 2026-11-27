@@ -22,14 +22,30 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 
 FEEDS = [
-    ("Hacker News", "https://hnrss.org/frontpage?points=80"),
-    ("Simon Willison", "https://simonwillison.net/atom/everything/"),
+    # Frontier AI labs & big-tech research (official)
     ("OpenAI News", "https://openai.com/news/rss.xml"),
+    ("Google DeepMind Blog", "https://deepmind.google/blog/rss.xml"),
     ("Google AI Blog", "https://blog.google/technology/ai/rss/"),
+    ("Google Research Blog", "https://research.google/blog/rss/"),
+    ("Mistral AI News", "https://mistral.ai/news/rss"),
+    ("Microsoft Research", "https://www.microsoft.com/en-us/research/feed/"),
+    ("Apple ML Research", "https://machinelearning.apple.com/rss.xml"),
+    ("NVIDIA AI Blog", "https://blogs.nvidia.com/blog/category/deep-learning/feed/"),
+    ("AWS Machine Learning Blog", "https://aws.amazon.com/blogs/machine-learning/feed/"),
+    ("Hugging Face Blog", "https://huggingface.co/blog/feed.xml"),
+    # Research preprints
+    ("arXiv cs.AI", "https://export.arxiv.org/rss/cs.AI"),
+    ("arXiv cs.CL", "https://export.arxiv.org/rss/cs.CL"),
+    # Authoritative coverage & curation
+    ("Hacker News", "https://hnrss.org/frontpage?points=80"),
     ("Ars Technica (AI)", "https://feeds.arstechnica.com/arstechnica/technology-lab"),
+    ("TechCrunch AI", "https://techcrunch.com/category/artificial-intelligence/feed/"),
+    ("The Verge AI", "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"),
+    ("Simon Willison", "https://simonwillison.net/atom/everything/"),
+    ("Import AI", "https://importai.substack.com/feed"),
 ]
-MAX_ITEMS_PER_FEED = 8
-MAX_ITEMS_TOTAL = 24
+MAX_ITEMS_PER_FEED = 6
+MAX_ITEMS_TOTAL = 60
 TAIPEI = timezone(timedelta(hours=8))
 
 
@@ -63,7 +79,11 @@ PREFERRED_MODELS = [
 def fetch(url, timeout=20):
     req = urllib.request.Request(url, headers={"User-Agent": "TechDigestAgent/1.0 (+https://fly.io/hacksgiving/)"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read()
+        raw = r.read()
+    if raw[:2] == b"\x1f\x8b":  # some feeds (e.g. DeepMind) answer gzip without asking
+        import gzip
+        raw = gzip.decompress(raw)
+    return raw
 
 
 def strip_ns(tag):
@@ -98,13 +118,53 @@ def parse_feed(source, raw):
 
 
 def collect_items():
-    all_items = []
+    per_feed = []
     for source, url in FEEDS:
         try:
-            all_items.extend(parse_feed(source, fetch(url)))
+            per_feed.append(parse_feed(source, fetch(url)))
         except Exception as e:  # a dead feed must not kill the digest
             print(f"[warn] feed {source} failed: {e}", file=sys.stderr)
-    return all_items[:MAX_ITEMS_TOTAL]
+            per_feed.append([])
+    # Round-robin interleave so every source is represented before the cap.
+    all_items = []
+    idx = 0
+    while len(all_items) < MAX_ITEMS_TOTAL:
+        progressed = False
+        for items in per_feed:
+            if idx < len(items):
+                all_items.append(items[idx])
+                progressed = True
+                if len(all_items) >= MAX_ITEMS_TOTAL:
+                    break
+        if not progressed:
+            break
+        idx += 1
+    return all_items
+
+
+def build_rss(items, now):
+    """RSS 2.0 feed of every collected item, published as feed.xml."""
+    from email.utils import format_datetime
+    from xml.sax.saxutils import escape
+    pub = format_datetime(now.astimezone(timezone.utc))
+    parts = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<rss version="2.0"><channel>',
+             '<title>科技新訊摘要｜全部新聞</title>',
+             '<link>https://tech-digest-b6vs6.sprites.app/</link>',
+             '<description>Tech Digest Agent 收集的全部 AI 科技新聞（原始清單，每 6 小時更新）</description>',
+             '<language>zh-Hant-TW</language>',
+             f'<lastBuildDate>{pub}</lastBuildDate>']
+    for it in items:
+        parts.append('<item>'
+                     f'<title>{escape(it["title"])}</title>'
+                     f'<link>{escape(it["link"])}</link>'
+                     f'<guid isPermaLink="true">{escape(it["link"])}</guid>'
+                     f'<description>{escape(it["summary"])}</description>'
+                     f'<category>{escape(it["source"])}</category>'
+                     f'<pubDate>{pub}</pubDate>'
+                     '</item>')
+    parts.append('</channel></rss>')
+    return "".join(parts)
 
 
 def gateway_json(path, payload=None):
@@ -169,52 +229,102 @@ def summarize(items):
         return None
 
 
+SOURCE_COLORS = {
+    "OpenAI News": "#0a7d62",
+    "Google DeepMind Blog": "#7b5cff",
+    "Google AI Blog": "#4285f4",
+    "Google Research Blog": "#34a853",
+    "Mistral AI News": "#ff7000",
+    "Microsoft Research": "#0067b8",
+    "Apple ML Research": "#555555",
+    "NVIDIA AI Blog": "#76b900",
+    "AWS Machine Learning Blog": "#e88b00",
+    "Hugging Face Blog": "#e8a100",
+    "arXiv cs.AI": "#b31b1b",
+    "arXiv cs.CL": "#8c2f39",
+    "Hacker News": "#ff6600",
+    "Ars Technica (AI)": "#01a3c4",
+    "TechCrunch AI": "#0a9e01",
+    "The Verge AI": "#5200ff",
+    "Simon Willison": "#0b7285",
+    "Import AI": "#946b00",
+}
+
+
 def render(entries, fallback_items, now):
     date_str = now.strftime("%Y-%m-%d")
+    weekday = "一二三四五六日"[now.weekday()]
     llm_mode = entries is not None
     cards = []
     if llm_mode:
         for e in entries:
+            color = SOURCE_COLORS.get(e["source"], "#6b675f")
             cards.append(
-                f'<article><h2><a href="{html.escape(e["link"])}" target="_blank" rel="noopener noreferrer">{html.escape(e["title"])}</a></h2>'
+                f'<article class="card">'
+                f'<div class="meta"><span class="badge" style="--c:{color}">{html.escape(e["source"])}</span></div>'
+                f'<h2><a href="{html.escape(e["link"])}" target="_blank" rel="noopener noreferrer">{html.escape(e["title"])}</a></h2>'
                 f'<p>{html.escape(e["summary"])}</p>'
-                f'<div class="src">{html.escape(e["source"])}</div></article>')
+                f'<a class="more" href="{html.escape(e["link"])}" target="_blank" rel="noopener noreferrer">閱讀原文 →</a>'
+                f'</article>')
     else:
         for it in fallback_items[:12]:
+            color = SOURCE_COLORS.get(it["source"], "#6b675f")
             cards.append(
-                f'<article><h2><a href="{html.escape(it["link"])}" target="_blank" rel="noopener noreferrer">{html.escape(it["title"])}</a></h2>'
+                f'<article class="card">'
+                f'<div class="meta"><span class="badge" style="--c:{color}">{html.escape(it["source"])}</span></div>'
+                f'<h2><a href="{html.escape(it["link"])}" target="_blank" rel="noopener noreferrer">{html.escape(it["title"])}</a></h2>'
                 f'<p>{html.escape(it["summary"][:160])}</p>'
-                f'<div class="src">{html.escape(it["source"])}（原文標題，LLM 摘要待 Ollama connector 開通）</div></article>')
+                f'<div class="note">原文標題，LLM 摘要待 Ollama connector 開通</div></article>')
     mode_note = "由 Ollama connector 驅動的 LLM 整理" if llm_mode else "Fallback 模式（connector 未開通）"
     return f"""<!DOCTYPE html>
 <html lang="zh-Hant-TW">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="科技新訊摘要：每日 AI 前沿新聞，由住在 Fly.io Sprite 上的個人 agent 以 LLM 整理成台灣繁體中文。">
+<link rel="alternate" type="application/rss+xml" title="科技新訊摘要｜全部新聞 RSS" href="feed.xml">
 <title>科技新訊摘要｜{date_str}</title>
 <style>
- body {{ font-family: system-ui, "Noto Sans TC", sans-serif; margin: 0; background: #f6f4ef; color: #1c1a17; }}
- header {{ background: #241f4e; color: #fff; padding: 28px 20px; }}
- header h1 {{ margin: 0 0 6px; font-size: 26px; }}
- header p {{ margin: 0; opacity: .85; font-size: 14px; }}
- main {{ max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }}
- article {{ background: #fff; border-radius: 12px; padding: 18px 20px; margin: 14px 0; box-shadow: 0 1px 4px rgba(0,0,0,.06); }}
- article h2 {{ font-size: 18px; margin: 0 0 8px; line-height: 1.45; }}
- article h2 a {{ color: #241f4e; text-decoration: none; }}
- article p {{ margin: 0 0 10px; line-height: 1.7; color: #3d3a36; }}
- .src {{ font-size: 12px; color: #8a8578; }}
- footer {{ max-width: 760px; margin: 0 auto; padding: 0 16px 32px; font-size: 12px; color: #8a8578; }}
+ :root {{ --bg:#f4f2ec; --surface:#ffffff; --ink:#1d1a16; --sub:#57534a; --line:#e5e0d5; --brand:#241f4e; --brand2:#4a3f9e; --accent:#ffb020; --more:#4a3f9e; }}
+ @media (prefers-color-scheme: dark) {{ :root {{ --bg:#14131a; --surface:#1e1c28; --ink:#f0ede6; --sub:#a49e92; --line:#322f42; --brand:#17142e; --brand2:#3d348b; --more:#a99cff; }} }}
+ * {{ box-sizing:border-box; }}
+ body {{ font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; margin:0; background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; }}
+ header {{ background:linear-gradient(135deg, var(--brand), var(--brand2)); color:#fff; padding:34px 20px 30px; }}
+ .wrap {{ max-width:1120px; margin:0 auto; }}
+ header h1 {{ margin:0 0 8px; font-size:clamp(24px, 4.5vw, 34px); letter-spacing:.5px; }}
+ header p {{ margin:0; opacity:.88; font-size:14px; line-height:1.6; }}
+ .rssbtn {{ display:inline-block; margin-top:14px; background:var(--accent); color:#241f4e; font-weight:700; font-size:13px; padding:8px 14px; border-radius:999px; text-decoration:none; }}
+ .rssbtn:hover {{ filter:brightness(1.07); }}
+ main {{ max-width:1120px; margin:0 auto; padding:22px 16px 52px; display:grid; grid-template-columns:1fr; gap:16px; }}
+ @media (min-width:720px) {{ main {{ grid-template-columns:1fr 1fr; }} }}
+ @media (min-width:1080px) {{ main {{ grid-template-columns:1fr 1fr 1fr; }} }}
+ .card {{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:10px; transition:transform .15s ease, box-shadow .15s ease; }}
+ .card:hover {{ transform:translateY(-3px); box-shadow:0 10px 24px rgba(20,16,60,.12); }}
+ .badge {{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:.4px; color:var(--c); border:1.5px solid var(--c); padding:3px 9px; border-radius:999px; }}
+ .card h2 {{ font-size:17.5px; margin:0; line-height:1.5; }}
+ .card h2 a {{ color:var(--ink); text-decoration:none; }}
+ .card h2 a:hover {{ text-decoration:underline; }}
+ .card p {{ margin:0; line-height:1.75; color:var(--sub); font-size:14.5px; flex:1; }}
+ .more {{ font-size:13px; font-weight:600; color:var(--more); text-decoration:none; }}
+ .more:hover {{ text-decoration:underline; }}
+ .note {{ font-size:12px; color:var(--sub); }}
+ footer {{ max-width:1120px; margin:0 auto; padding:0 16px 36px; font-size:12.5px; color:var(--sub); line-height:1.7; }}
+ footer a {{ color:inherit; }}
+ a:focus-visible {{ outline:2px solid var(--accent); outline-offset:2px; }}
 </style>
 </head>
 <body>
 <header>
- <h1>🗞️ 科技新訊摘要</h1>
- <p>{date_str}（台北時間）・{mode_note}・住在 Fly.io Sprite 上的個人 agent 自動編製</p>
+ <div class="wrap">
+  <h1>🗞️ 科技新訊摘要</h1>
+  <p>{date_str}（星期{weekday}，台北時間）・{mode_note}・住在 Fly.io Sprite 上的個人 agent 自動編製，每 6 小時更新</p>
+  <a class="rssbtn" href="feed.xml">📡 RSS 訂閱（全部新聞）</a>
+ </div>
 </header>
 <main>
 {''.join(cards)}
 </main>
-<footer>Built for Fly.io Hacksgiving 2026 — runs on a Sprite, summarized via the Sprites Ollama connector.</footer>
+<footer>精選 8 則由 LLM 編譯；完整收集清單見 <a href="feed.xml">RSS feed</a>（18 個來源，含 OpenAI、Google DeepMind、Mistral、Microsoft Research、arXiv 等）。<br>Built for Fly.io Hacksgiving 2026 — runs on a Sprite, summarized via the Sprites Ollama connector.</footer>
 </body>
 </html>"""
 
@@ -229,6 +339,8 @@ def main():
     page = render(entries, items, now)
     with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(page)
+    with open(os.path.join(out_dir, "feed.xml"), "w", encoding="utf-8") as f:
+        f.write(build_rss(items, now))
     archive = {"date": now.strftime("%Y-%m-%d"), "generated_at": now.isoformat(),
                "llm": entries is not None, "entries": entries or [],
                "raw_items": items}

@@ -7,14 +7,24 @@ Built for **Fly.io Hacksgiving 2026**.
 
 ## What it does
 
-1. **Fetches** the latest items from tech RSS/Atom feeds (Hacker News,
-   Simon Willison, OpenAI News, Google AI Blog, Ars Technica).
-2. **Summarizes** them into a zh-TW daily digest with an LLM reached through
-   the **Sprites Ollama connector** — the Sprite never holds the Ollama API
-   key; the Sprites gateway attaches the organization's credential to the
-   request.
-3. **Publishes** the digest as a web page served from the same Sprite, and
-   regenerates it every 6 hours.
+1. **Fetches** the latest items from 18 AI-focused RSS/Atom feeds, with a
+   round-robin interleave so every source is represented (up to 60 items):
+   official frontier-lab and big-tech research blogs (OpenAI, Google
+   DeepMind, Google AI, Google Research, Mistral AI, Microsoft Research,
+   Apple ML Research, NVIDIA AI, AWS Machine Learning, Hugging Face),
+   arXiv preprints (cs.AI, cs.CL), and curated coverage (Hacker News,
+   Ars Technica, TechCrunch AI, The Verge AI, Simon Willison, Import AI).
+   Note: Anthropic, Meta AI and xAI publish no RSS feed, so they cannot be
+   collected this way.
+2. **Summarizes** the collection into a zh-TW digest of the top 8 stories
+   with an LLM reached through the **Sprites Ollama connector** — the
+   Sprite never holds the Ollama API key; the Sprites gateway attaches the
+   organization's credential to the request.
+3. **Publishes** the digest as a responsive web page (card grid, source
+   badges, dark-mode support) served from the same Sprite, plus an RSS
+   feed of *all* collected items at
+   https://tech-digest-b6vs6.sprites.app/feed.xml — and regenerates
+   everything every 6 hours.
 
 Live demo: https://tech-digest-b6vs6.sprites.app
 
