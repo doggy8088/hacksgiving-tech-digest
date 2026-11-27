@@ -400,6 +400,10 @@ def render(entries, fallback_items, now):
 <meta name="author" content="Will Huang">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://tech-digest-b6vs6.sprites.app/">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <meta name="theme-color" content="#241f4e">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="科技新訊摘要">
@@ -504,10 +508,13 @@ def main():
         f.write(page)
     with open(os.path.join(out_dir, "feed.xml"), "w", encoding="utf-8") as f:
         f.write(build_rss(items, now))
-    og_src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "og-image.jpg")
-    if os.path.exists(og_src):
-        import shutil
-        shutil.copy(og_src, os.path.join(out_dir, "og-image.jpg"))
+    import shutil
+    here = os.path.dirname(os.path.abspath(__file__))
+    for asset in ("og-image.jpg", "favicon.ico", "favicon-32.png",
+                  "icon-192.png", "icon-512.png", "apple-touch-icon.png"):
+        src_path = os.path.join(here, asset)
+        if os.path.exists(src_path):
+            shutil.copy(src_path, os.path.join(out_dir, asset))
     archive = {"date": now.strftime("%Y-%m-%d"), "generated_at": now.isoformat(),
                "llm": entries is not None, "entries": entries or [],
                "raw_items": items}
